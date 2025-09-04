@@ -264,9 +264,7 @@ await auction.acceptDutch(auctionId, { value: currentPrice });
 #### Create NFT Auction with IPFS Metadata
 ```bash
 # Pin metadata to IPFS
-curl -X POST http://localhost:3001/pin \
-  -H "Content-Type: application/json" \
-  -d '{
+curl -X POST http://localhost:3001/pin   -H "Content-Type: application/json"   -d '{
     "name": "Rare Digital Art",
     "description": "Unique generative artwork",
     "image": "https://ipfs.io/ipfs/QmImageHash",
@@ -277,9 +275,7 @@ curl -X POST http://localhost:3001/pin \
   }'
 
 # Create auction with NFT and metadata
-curl -X POST http://localhost:3001/create-auction \
-  -H "Content-Type: application/json" \
-  -d '{
+curl -X POST http://localhost:3001/create-auction   -H "Content-Type: application/json"   -d '{
     "auctionType": 0,
     "durationSec": 3600,
     "reservePriceWei": "100000000000000000",
@@ -295,9 +291,7 @@ curl -X POST http://localhost:3001/create-auction \
 #### Identity Verification
 ```bash
 # Verify wallet identity
-curl -X POST http://localhost:3001/verify \
-  -H "Content-Type: application/json" \
-  -d '{
+curl -X POST http://localhost:3001/verify   -H "Content-Type: application/json"   -d '{
     "v": 27,
     "r": "0x...",
     "s": "0x..."
@@ -426,9 +420,6 @@ npx hardhat run scripts/verify.js --network sepolia
 5. Update documentation
 6. Submit pull request
 
-## 📄 License
-
-MIT License - see LICENSE file for details
 
 ## 🆘 Support
 
@@ -442,5 +433,4 @@ For issues and questions:
 
 **Built with ❤️ using Hardhat, Ethers.js, OpenZeppelin, IPFS, and SQLite**
 
-*This project represents a research-grade prototype demonstrating advanced blockchain auction mechanisms with enterprise-level features and academic rigor.*#   R B L _ p r o j e c t  
- 
+*This project represents a research-grade prototype demonstrating advanced blockchain auction mechanisms with enterprise-level features and academic rigor.*#

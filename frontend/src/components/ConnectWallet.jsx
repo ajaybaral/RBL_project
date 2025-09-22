@@ -8,6 +8,11 @@ import {
   getNetworkName 
 } from '../utils/metaMask';
 
+// Global guard to prevent parallel MetaMask prompts across components/tabs in the app
+if (typeof window !== 'undefined' && window.__ethRequestPending === undefined) {
+  window.__ethRequestPending = false;
+}
+
 export default function ConnectWallet({ onConnected }) {
   const [account, setAccount] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -41,32 +46,54 @@ export default function ConnectWallet({ onConnected }) {
   };
 
   async function connect() {
+    if (window.__ethRequestPending || isConnecting) {
+      // Prevent spamming requests while a prompt is open
+      setError('MetaMask is already processing a connection request. Please complete it in the extension.');
+      return;
+    }
+
     setIsConnecting(true);
+    window.__ethRequestPending = true;
     setError(null);
     
     try {
       if (!isMetaMaskInstalled()) {
-        throw new Error('MetaMask not found. Please install MetaMask extension.');
+        setError('MetaMask not detected. Please install the MetaMask extension and refresh.');
+        window.open('https://metamask.io/download/', '_blank', 'noopener');
+        return;
+      }
+
+      // If an account is already connected, short-circuit
+      const existing = await window.ethereum.request({ method: 'eth_accounts' });
+      if (existing && existing[0]) {
+        setAccount(existing[0]);
+        onConnected && onConnected(existing[0]);
+        await getNetworkInfo();
+        await getAccountBalance(existing[0]);
+        return;
       }
 
       // Request account access
-      const accounts = await window.ethereum.request({ 
-        method: 'eth_requestAccounts' 
-      });
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       
       if (accounts && accounts[0]) {
         setAccount(accounts[0]);
         onConnected && onConnected(accounts[0]);
-        
-        // Get network info and balance
         await getNetworkInfo();
         await getAccountBalance(accounts[0]);
       }
     } catch (err) {
-      setError(err.message);
+      // Handle MetaMask "request already pending" error more clearly
+      // -32002 per EIP-1474 (resource unavailable / request already pending)
+      if (err && (err.code === -32002 || String(err.message || '').toLowerCase().includes('already processing'))) {
+        setError('A MetaMask connection request is already open. Open the MetaMask extension and approve/deny it, then try again.');
+      } else {
+        setError(err?.message || 'Failed to connect wallet');
+      }
       console.error('Wallet connection error:', err);
     } finally {
       setIsConnecting(false);
+      window.__ethRequestPending = false;
     }
   }
 
@@ -119,25 +146,16 @@ export default function ConnectWallet({ onConnected }) {
               <div className="w-4 h-4 bg-green-400 rounded-full animate-pulse shadow-lg"></div>
             </div>
             <div className="flex-1">
-              <p className="text-lg font-bold text-green-800">
-                Wallet Connected
-              </p>
-              <p className="text-sm text-green-600 font-mono bg-green-100 px-3 py-1 rounded-lg">
-                {account.slice(0, 6)}...{account.slice(-4)}
-              </p>
+              <p className="text-lg font-bold text-green-800">Wallet Connected</p>
+              <p className="text-sm text-green-600 font-mono bg-green-100 px-3 py-1 rounded-lg">{account.slice(0, 6)}...{account.slice(-4)}</p>
               {balance && (
-                <p className="text-sm text-green-600 font-semibold mt-1">
-                  Balance: {balance} ETH
-                </p>
+                <p className="text-sm text-green-600 font-semibold mt-1">Balance: {balance} ETH</p>
               )}
             </div>
             <button
-              onClick={() => {
-                setAccount(null);
-                setBalance(null);
-                onConnected && onConnected(null);
-              }}
+              onClick={() => { setAccount(null); setBalance(null); onConnected && onConnected(null); }}
               className="btn-secondary text-sm"
+              type="button"
             >
               Disconnect
             </button>
@@ -147,34 +165,19 @@ export default function ConnectWallet({ onConnected }) {
         {/* Network Status */}
         {network && (
           <div className={`p-3 rounded-lg border ${
-            network.chainId === '0x7a69' || network.chainId === '0x539' 
-              ? 'bg-blue-50 border-blue-200' 
-              : 'bg-yellow-50 border-yellow-200'
+            network.chainId === '0x7a69' || network.chainId === '0x539' ? 'bg-blue-50 border-blue-200' : 'bg-yellow-50 border-yellow-200'
           }`}>
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm font-medium ${
-                  network.chainId === '0x7a69' || network.chainId === '0x539' 
-                    ? 'text-blue-800' 
-                    : 'text-yellow-800'
-                }`}>
-                  Network: {network.name}
-                </p>
+                  network.chainId === '0x7a69' || network.chainId === '0x539' ? 'text-blue-800' : 'text-yellow-800'
+                }`}>Network: {network.name}</p>
                 <p className={`text-xs ${
-                  network.chainId === '0x7a69' || network.chainId === '0x539' 
-                    ? 'text-blue-600' 
-                    : 'text-yellow-600'
-                }`}>
-                  Chain ID: {network.chainId}
-                </p>
+                  network.chainId === '0x7a69' || network.chainId === '0x539' ? 'text-blue-600' : 'text-yellow-600'
+                }`}>Chain ID: {network.chainId}</p>
               </div>
               {(network.chainId !== '0x7a69' && network.chainId !== '0x539') && (
-                <button
-                  onClick={switchToLocalhost}
-                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
-                >
-                  Switch to Localhost
-                </button>
+                <button onClick={switchToLocalhost} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded" type="button">Switch to Localhost</button>
               )}
             </div>
           </div>
@@ -209,17 +212,8 @@ export default function ConnectWallet({ onConnected }) {
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm text-yellow-800">
-                MetaMask not detected. Please install MetaMask extension.
-              </p>
-              <a 
-                href="https://metamask.io/download/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-sm text-yellow-600 hover:text-yellow-800 underline"
-              >
-                Download MetaMask
-              </a>
+              <p className="text-sm text-yellow-800">MetaMask not detected. Please install MetaMask extension.</p>
+              <a href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer" className="text-sm text-yellow-600 hover:text-yellow-800 underline">Download MetaMask</a>
             </div>
           </div>
         </div>
@@ -227,16 +221,17 @@ export default function ConnectWallet({ onConnected }) {
       
       <button
         onClick={connect}
-        disabled={isConnecting || !isMetaMaskInstalled()}
+        disabled={isConnecting || window.__ethRequestPending}
         className="w-full btn-primary flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        type="button"
       >
-        {isConnecting ? (
+        {isConnecting || window.__ethRequestPending ? (
           <>
             <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            Connecting...
+            Waiting for MetaMask...
           </>
         ) : (
           <>

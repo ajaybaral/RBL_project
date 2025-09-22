@@ -7,8 +7,9 @@
     "hh:compile": "hardhat compile",
     "hh:test": "hardhat test",
     "hh:node": "hardhat node",
-    "hh:deploy:localhost": "hardhat run scripts/deploy.js --network localhost",
+    "hh:deploy:localhost": "hardhat run scripts/deploy_simple.js --network localhost",
     "start:backend": "node backend/index.js",
+    "reindex": "node scripts/reindex.js",
     "dev:frontend": "cd frontend && npm install && npm run dev"
   },
   "devDependencies": {
@@ -41,6 +42,8 @@
     "cores": "^0.8.5",
     "cors": "^2.8.5",
     "ethers": "^6.15.0",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "node-fetch": "^2.7.0",
+    "sqlite3": "^5.1.6"
   }
 }
